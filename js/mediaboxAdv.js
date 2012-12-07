@@ -13,7 +13,7 @@ var Mediabox;
 	// Global variables, accessible to Mediabox only
 	var options, images, activeImage, prevImage, nextImage, top, mTop, left, mLeft, winWidth, winHeight, fx, preload, preloadPrev = new Image(), preloadNext = new Image(), foxfix = false, iefix = false,
 	// DOM elements
-	overlay, center, image, bottom, captionSplit, title, caption, prevLink, number, nextLink,
+	overlay, center, image, bottom, captionSplit, title, caption, prevLink, number, nextLink, download, gridGallery,
 	// Mediabox specific vars
 	URL, WH, WHL, elrel, mediaWidth, mediaHeight, mediaType = "none", mediaSplit, mediaId = "mediaBox", mediaFmt, margin;
 
@@ -28,15 +28,17 @@ var Mediabox;
 			]).setStyle("display", "none")
 		);
 
-		image = new Element("div", {id: "mbImage"}).injectInside(center);
-		bottom = new Element("div", {id: "mbBottom"}).injectInside(center).adopt(
-			closeLink = new Element("a", {id: "mbCloseLink", href: "#"}).addEvent("click", close),
+		image = new Element("div", {id: "mbImage"}).inject(center,'inside');
+		bottom = new Element("div", {id: "mbBottom"}).inject(center,'inside').adopt(
 			nextLink = new Element("a", {id: "mbNextLink", href: "#"}).addEvent("click", next),
 			prevLink = new Element("a", {id: "mbPrevLink", href: "#"}).addEvent("click", previous),
 			title = new Element("div", {id: "mbTitle"}),
 			number = new Element("div", {id: "mbNumber"}),
-			caption = new Element("div", {id: "mbCaption"})
+			caption = new Element("div", {id: "mbCaption"}),
+			actions = new Element("div", {id: "mbActions"})
 		);
+		closeLink = new Element("a", {id: "mbCloseLink", href: "#"}).addEvent("click", close);
+		closeLink.inject(center, 'inside');
 
 		fx = {
 			overlay: new Fx.Tween(overlay, {property: "opacity", duration: 360}).set(0),
@@ -53,19 +55,20 @@ var Mediabox;
 		},
 
 		open: function(_images, startImage, _options) {
-			options = $extend({
-				text: ['<big>&laquo;</big>','<big>&raquo;</big>','<big>&times;</big>'],		// Set "previous", "next", and "close" button content (HTML code should be written as entity codes or properly escaped)
+			options = Object.append({
+				text: ['&nbsp;','&nbsp;','&nbsp;'],		// Set "previous", "next", and "close" button content (HTML code should be written as entity codes or properly escaped)
 //				text: ['<big>«</big>','<big>»</big>','<big>×</big>'],		// Set "previous", "next", and "close" button content (HTML code should be written as entity codes or properly escaped)
 //	example		text: ['<b>P</b>rev','<b>N</b>ext','<b>C</b>lose'],
-				loop: false,					// Allows to navigate between first and last images
+				loop: true,					    // Allows to navigate between first and last images
 				keyboard: true,					// Enables keyboard control; escape key, left arrow, and right arrow
 				alpha: true,					// Adds 'x', 'c', 'p', and 'n' when keyboard control is also set to true
 				stopKey: false,					// Stops all default keyboard actions while overlay is open (such as up/down arrows)
-													// Does not apply to iFrame content, does not affect mouse scrolling
-				overlayOpacity: 0.7,			// 1 is opaque, 0 is completely transparent (change the color in the CSS file)
+												// Does not apply to iFrame content, does not affect mouse scrolling
+				overlayOpacity: 0.6,			// 1 is opaque, 0 is completely transparent (change the color in the CSS file)
 				resizeOpening: true,			// Determines if box opens small and grows (true) or starts at larger size (false)
 				resizeDuration: 240,			// Duration of each of the box resize animations (in milliseconds)
 				resizeTransition: false,		// Mootools transition effect (false leaves it at the default)
+				minWidth: 270,                   // Minimal width the media must have.
 				initialWidth: 320,				// Initial width of the box (in pixels)
 				initialHeight: 180,				// Initial height of the box (in pixels)
 				defaultWidth: 640,				// Default width of the box (in pixels) for undefined media (MP4, FLV, etc.)
@@ -73,12 +76,17 @@ var Mediabox;
 				showCaption: true,				// Display the title and caption, true / false
 				showCounter: true,				// If true, a counter will only be shown if there is more than 1 image to display
 				counterText: '({x} of {y})',	// Translate or change as you wish
+				// DST ::>
+				showGridGallery: true,          // If true, a thumbnail grid will be shown
+				showDownload: true,             // If true, a download link will be shown
+				pathToDownloadScript: '',       // if above is true, specify path to download script
+				// <:: DST
 //			Image options
 				imgBackground: false,		// Embed images as CSS background (true) or <img> tag (false)
 											// CSS background is naturally non-clickable, preventing downloads
 											// IMG tag allows automatic scaling for smaller screens
 											// (all images have no-click code applied, albeit not Opera compatible. To remove, comment lines 212 and 822)
-				imgPadding: 100,			// Clearance necessary for images larger than the window size (only used when imgBackground is false)
+				imgPadding: 300,			// Clearance necessary for images larger than the window size (only used when imgBackground is false)
 											// Change this number only if the CSS style is significantly divergent from the original, and requires different sizes
 //			Inline options
 //				overflow: 'auto',			// If set, overides CSS settings for inline content only
@@ -142,13 +150,13 @@ var Mediabox;
 
 			margin = center.getStyle('padding-left').toInt()+image.getStyle('margin-left').toInt()+image.getStyle('padding-left').toInt();
 
-			if ((Browser.Engine.gecko) && (Browser.Engine.version<19)) {	// Fixes Firefox 2 and Camino 1.6 incompatibility with opacity + flash
+			if ((Browser.firefox) && (Browser.version<19)) {	// Fixes Firefox 2 and Camino 1.6 incompatibility with opacity + flash
 				foxfix = true;
 				options.overlayOpacity = 1;
 				overlay.className = 'mbOverlayFF';
 			}
 
-			if ((Browser.Engine.trident) && (Browser.Engine.version<5)) {	// Fixes IE 6 and earlier incompatibilities with CSS position: fixed;
+			if (Browser.ie6) {	// Fixes IE 6
 				iefix = true;
 				overlay.className = 'mbOverlayIE';
 				overlay.setStyle("position", "absolute");
@@ -167,7 +175,7 @@ var Mediabox;
 			setup(true);
 			top = window.getScrollTop() + (window.getHeight()/2);
 			left = window.getScrollLeft() + (window.getWidth()/2);
-			fx.resize = new Fx.Morph(center, $extend({duration: options.resizeDuration, onComplete: imageAnimate}, options.resizeTransition ? {transition: options.resizeTransition} : {}));
+			fx.resize = new Fx.Morph(center, Object.append({duration: options.resizeDuration, onComplete: imageAnimate}, options.resizeTransition ? {transition: options.resizeTransition} : {}));
 			center.setStyles({top: top, left: left, width: options.initialWidth, height: options.initialHeight, marginTop: -(options.initialHeight/2)-margin, marginLeft: -(options.initialWidth/2)-margin, display: ""});
 			fx.overlay.start(options.overlayOpacity);
 			return changeImage(startImage);
@@ -242,7 +250,7 @@ var Mediabox;
 
 	function setup(open) {
 		// Hides on-page objects and embeds while the overlay is open, nessesary to counteract Firefox stupidity
-		if (Browser.Engine.gecko) {
+		if (Browser.firefox) {
 			["object", window.ie ? "select" : "embed"].forEach(function(tag) {
 				Array.forEach(document.getElementsByTagName(tag), function(el) {
 					if (open) el._mediabox = el.style.visibility;
@@ -299,7 +307,7 @@ var Mediabox;
 	}
 
 	function changeImage(imageIndex) {
-		if (imageIndex >= 0) {
+	    if (imageIndex >= 0) {
 			image.set('html', '');
 			activeImage = imageIndex;
 			prevImage = ((activeImage || !options.loop) ? activeImage : images.length) - 1;
@@ -340,11 +348,12 @@ var Mediabox;
 
 // GIF, JPG, PNG
 			if (URL.match(/\.gif|\.jpg|\.jpeg|\.png|twitpic\.com/i) || mediaType == 'image') {
-				mediaType = 'img';
+			    mediaType = 'img';
 				URL = URL.replace(/twitpic\.com/i, "twitpic.com/show/full");
 				preload = new Image();
 				preload.onload = startEffect;
 				preload.src = URL;
+				
 // FLV, MP4
 			} else if (URL.match(/\.flv|\.mp4/i) || mediaType == 'video') {
 				mediaType = 'obj';
@@ -825,6 +834,9 @@ var Mediabox;
 				URLsplit = URL.split('#');
 				preload = document.id(URLsplit[1]).get('html');
 				startEffect();
+				// DST ::> 
+				Mediabox.scanPage();
+				// <:: DST 
 // HTML
 			} else {
 				mediaType = 'url';
@@ -847,20 +859,21 @@ var Mediabox;
 	function startEffect() {
 		if (mediaType == "img"){
 			mediaWidth = preload.width;
+			mediaWidth = mediaWidth < options.minWidth ? options.minWidth : mediaWidth;
 			mediaHeight = preload.height;
 			if (options.imgBackground) {
 				image.setStyles({backgroundImage: "url("+URL+")", display: ""});
 			} else {	// Thanks to Dusan Medlin for fixing large 16x9 image errors in a 4x3 browser
 				if (mediaHeight >= winHeight-options.imgPadding && (mediaHeight / winHeight) >= (mediaWidth / winWidth)) {
-					mediaHeight = winHeight-options.imgPadding;
+				    mediaHeight = winHeight-options.imgPadding;
 					mediaWidth = preload.width = parseInt((mediaHeight/preload.height)*mediaWidth);
 					preload.height = mediaHeight;
 				} else if (mediaWidth >= winWidth-options.imgPadding && (mediaHeight / winHeight) < (mediaWidth / winWidth)) {
-					mediaWidth = winWidth-options.imgPadding;
+				    mediaWidth = winWidth-options.imgPadding;
 					mediaHeight = preload.height = parseInt((mediaWidth/preload.width)*mediaHeight);
 					preload.width = mediaWidth;
 				}
-				if (Browser.Engine.trident) preload = document.id(preload);
+				if (Browser.ie) preload = document.id(preload);
 				preload.addEvent('mousedown', function(e){ e.stop(); }).addEvent('contextmenu', function(e){ e.stop(); });
 				image.setStyles({backgroundImage: "none", display: ""});
 				preload.inject(image);
@@ -893,11 +906,40 @@ var Mediabox;
 		}
 		image.setStyles({width: mediaWidth, height: mediaHeight});
 		caption.setStyles({width: mediaWidth});
-
 		title.set('html', (options.showCaption) ? captionSplit[0] : "");
 		caption.set('html', (options.showCaption && (captionSplit.length > 1)) ? captionSplit[1] : "");
 		number.set('html', (options.showCounter && (images.length > 1)) ? options.counterText.replace(/{x}/, activeImage + 1).replace(/{y}/, images.length) : "");
-
+		// DST ::> 
+		// empty elements if its not an image
+		actions.set('html', '');
+		if(options.showDownload && mediaType == "img"){
+		    var downloadEl = new Element('a', {
+		       href:  options.pathToDownloadScript + URL + '?download=true',
+		       'class': 'mbDownload',
+		       html: getJSMessage('mediaboxAdvanced.download.title')
+		    });
+		    actions.grab(downloadEl);
+		}
+		if(options.showGridGallery && mediaType == "img"){
+		    var noteId = WH[0].split('-'); // see changeImage
+		    if(noteId.length == 2){
+		      
+		        noteId = noteId[1];
+                var gridLink = $('gridGalleryLink-' + noteId);
+             
+                if(gridLink){
+                    var clonedLink = gridLink.clone(true,true);
+                    clonedLink = clonedLink.cloneEvents(gridLink);
+                    clonedLink.set('html', getJSMessage('mediaboxAdvanced.overview.title'));
+                    clonedLink.set('class', 'mbGalleryLink');
+                    actions.grab(clonedLink, 'top');
+                }
+		    }
+        }
+		actions.grab(new Element('span', {
+            'class': 'mbClear'
+         }));
+		// <:: DST
 		if ((prevImage >= 0) && (images[prevImage][0].match(/\.gif|\.jpg|\.jpeg|\.png|twitpic\.com/i))) preloadPrev.src = images[prevImage][0].replace(/twitpic\.com/i, "twitpic.com/show/full");
 		if ((nextImage >= 0) && (images[nextImage][0].match(/\.gif|\.jpg|\.jpeg|\.png|twitpic\.com/i))) preloadNext.src = images[nextImage][0].replace(/twitpic\.com/i, "twitpic.com/show/full");
 
@@ -921,7 +963,7 @@ var Mediabox;
 	}
 
 	function stop() {
-		if (preload) preload.onload = $empty;
+		if (preload) preload.onload = function(){};
 		fx.resize.cancel();
 		fx.image.cancel().set(0);
 		fx.bottom.cancel().set(0);
@@ -930,7 +972,7 @@ var Mediabox;
 
 	function close() {
 		if (activeImage >= 0) {
-			preload.onload = $empty;
+			preload.onload = function(){};
 			image.set('html', '');
 			for (var f in fx) fx[f].cancel();
 			center.setStyle("display", "none");
@@ -942,9 +984,16 @@ var Mediabox;
 
 	/*	Autoload code block	*/
 
-Mediabox.scanPage = function() {
+Mediabox.scanPage = function(startNode) {
 //	$$('#mb_').each(function(hide) { hide.set('display', 'none'); });
-	var links = $$("a").filter(function(el) {
+    var links;
+    if (startNode) {
+        startNode = document.id(startNode);
+        links = startNode.getElements('a');
+    } else {
+        links = $$("a");
+    }
+	links = links.filter(function(el) {
 		return el.rel && el.rel.test(/^lightbox/i);
 	});
 	$$(links).mediabox({/* Put custom options here */}, null, function(el) {
