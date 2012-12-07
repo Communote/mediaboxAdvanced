@@ -27,7 +27,7 @@ var Mediabox;
 	// Global variables, accessible to Mediabox only
 	var options, mediaArray, activeMedia, prevMedia, nextMedia, top, mTop, left, mLeft, winWidth, winHeight, fx, preload, preloadPrev = new Image(), preloadNext = new Image(),
 	// DOM elements
-	overlay, center, media, bottom, captionSplit, title, caption, number, prevLink, nextLink,
+	overlay, center, media, bottom, captionSplit, title, caption, number, prevLink, nextLink, download, gridGallery,
 	// Mediabox specific vars
 	URL, WH, WHL, elrel, mediaWidth, mediaHeight, mediaType = "none", mediaSplit, mediaId = "mediaBox", margin, marginBottom;
 
@@ -45,14 +45,15 @@ var Mediabox;
 		container = new Element("div", {id: "mbContainer"}).inject(center, "inside");
 			media = new Element("div", {id: "mbMedia"}).inject(container, "inside");
 		bottom = new Element("div", {id: "mbBottom"}).inject(center, "inside").adopt(
-			closeLink = new Element("a", {id: "mbCloseLink", href: "#"}).addEvent("click", close),
 			nextLink = new Element("a", {id: "mbNextLink", href: "#"}).addEvent("click", next),
 			prevLink = new Element("a", {id: "mbPrevLink", href: "#"}).addEvent("click", previous),
 			title = new Element("div", {id: "mbTitle"}),
 			number = new Element("div", {id: "mbNumber"}),
-			caption = new Element("div", {id: "mbCaption"})
+			caption = new Element("div", {id: "mbCaption"}),
+            actions = new Element("div", {id: "mbActions"})
 			);
-
+    	    closeLink = new Element("a", {id: "mbCloseLink", href: "#"}).addEvent("click", close);
+            closeLink.inject(center, 'inside');
 		fx = {
 			overlay: new Fx.Tween(overlay, {property: "opacity", duration: 360}).set(0),
 			media: new Fx.Tween(media, {property: "opacity", duration: 360, onComplete: captionAnimate}),
@@ -80,7 +81,7 @@ var Mediabox;
 		open: function(_mediaArray, startMedia, _options) {
 			options = {
 //			Text options (translate as needed)
-				buttonText: ['<big>&laquo;</big>','<big>&raquo;</big>','<big>&times;</big>'],		// Array defines "previous", "next", and "close" button content (HTML code should be written as entity codes or properly escaped)
+				buttonText: ['&nbsp;','&nbsp;','&nbsp;'],		// Array defines "previous", "next", and "close" button content (HTML code should be written as entity codes or properly escaped)
 //				buttonText: ['<big>«</big>','<big>»</big>','<big>×</big>'],
 //				buttonText: ['<b>P</b>rev','<b>N</b>ext','<b>C</b>lose'],
 				counterText: '({x} of {y})',	// Counter text, {x} = current item number, {y} = total gallery length
@@ -88,13 +89,14 @@ var Mediabox;
 				flashText: '<b>Error</b><br/>Adobe Flash is either not installed or not up to date, please visit <a href="http://www.adobe.com/shockwave/download/download.cgi?P1_Prod_Version=ShockwaveFlash" title="Get Flash" target="_new">Adobe.com</a> to download the free player.',	// Text shown if Flash is not installed.
 //			General overlay options
 				center: true,					// Set to false for use with custom CSS layouts
-				loop: false,					// Navigate from last to first elements in a gallery
+				loop: true,					// Navigate from last to first elements in a gallery
 				keyboard: true,					// Enables keyboard control; escape key, left arrow, and right arrow
 				keyboardAlpha: false,			// Adds 'x', 'c', 'p', and 'n' when keyboard control is also set to true
 				keyboardStop: false,			// Stops all default keyboard actions while overlay is open (such as up/down arrows)
 												// Does not apply to iFrame content, does not affect mouse scrolling
-				overlayOpacity: 0.8,			// 1 is opaque, 0 is completely transparent (change the color in the CSS file)
+				overlayOpacity: 0.6,			// 1 is opaque, 0 is completely transparent (change the color in the CSS file)
 				resizeOpening: true,			// Determines if box opens small and grows (true) or starts at larger size (false)
+				minWidth: 270,
 				resizeDuration: 240,			// Duration of each of the box resize animations (in milliseconds)
 				initialWidth: 320,				// Initial width of the box (in pixels)
 				initialHeight: 180,				// Initial height of the box (in pixels)
@@ -103,6 +105,11 @@ var Mediabox;
 				showCaption: true,				// Display the title and caption, true / false
 				showCounter: true,				// If true, a counter will only be shown if there is more than 1 image to display
 				countBack: false,				// Inverts the displayed number (so instead of the first element being labeled 1/10, it's 10/10)
+				// DST ::>
+                showGridGallery: true,          // If true, a thumbnail grid will be shown
+                showDownload: true,             // If true, a download link will be shown
+                pathToDownloadScript: '',       // if above is true, specify path to download script
+                // <:: DST
 				clickBlock: true,				// Adds an event on right-click to block saving of images from the context menu in most browsers (this can't prevent other ways of downloading, but works as a casual deterent)
 								// due to less than ideal code ordering, clickBlock on links must be removed manually around line 250
 //			iOS device options
@@ -115,11 +122,11 @@ var Mediabox;
 											// CSS background is naturally non-clickable, preventing downloads
 											// IMG tag allows automatic scaling for smaller screens
 											// (all images have no-click code applied, albeit not Opera compatible. To remove, comment lines 212 and 822)
-				imgPadding: 100,			// Clearance necessary for images larger than the window size (only used when imgBackground is false)
+				imgPadding: 300,			// Clearance necessary for images larger than the window size (only used when imgBackground is false)
 											// Change this number only if the CSS style is significantly divergent from the original, and requires different sizes
 //			Inline options
 				overflow: 'auto',			// If set, overides CSS settings for inline content only, set to "false" to leave CSS settings intact.
-				inlineClone: false,			// Clones the inline element instead of moving it from the page to the overlay
+				inlineClone: true,			// Clones the inline element instead of moving it from the page to the overlay
 //			Global media options
 				html5: 'true',				// HTML5 settings for YouTube and Vimeo, false = off, true = on
 				scriptaccess: 'true',		// Allow script access to flash files
@@ -839,7 +846,13 @@ var Mediabox;
 			media.setStyles({backgroundImage: "none", display: ""});
 //			preload.inject(media);
 //			media.grab(preload.get('html'));
-			(options.inlineClone)?media.grab(preload.get('html')):media.adopt(preload.getChildren());
+			if (options.inlineClone){
+			    var clone = new Element('div', {html: preload.get('html')});
+			    media.grab(clone);
+			    Mediabox.scanPage(clone);
+			} else {
+			    media.adopt(preload.getChildren());
+			}
 		} else if (mediaType == "qt") {
 			media.setStyles({backgroundImage: "none", display: ""});
 			preload.inject(media);
@@ -874,7 +887,35 @@ var Mediabox;
 		title.set('html', (options.showCaption) ? captionSplit[0] : "");
 		caption.set('html', (options.showCaption && (captionSplit.length > 1)) ? captionSplit[1] : "");
 		number.set('html', (options.showCounter && (mediaArray.length > 1)) ? options.counterText.replace(/\{x\}/, (options.countBack)?mediaArray.length-activeMedia:activeMedia+1).replace(/\{y\}/, mediaArray.length) : "");
-
+		// DST ::> 
+        // empty elements if its not an image
+        actions.set('html', '');
+        if(options.showDownload && mediaType == "img"){
+            var downloadEl = new Element('a', {
+               href:  options.pathToDownloadScript + URL + '?download=true',
+               'class': 'mbDownload',
+               html: getJSMessage('mediaboxAdvanced.download.title')
+            });
+            actions.grab(downloadEl);
+        }
+        if(options.showGridGallery && mediaType == "img"){
+            var noteId = WH[0].split('-'); // see changeImage
+            if(noteId.length == 2){
+                noteId = noteId[1];
+                var gridLink = $('gridGalleryLink-' + noteId);
+                if(gridLink){
+                    var clonedLink = gridLink.clone(true,true);
+                    clonedLink = clonedLink.cloneEvents(gridLink);
+                    clonedLink.set('html', getJSMessage('mediaboxAdvanced.overview.title'));
+                    clonedLink.set('class', 'mbGalleryLink');
+                    actions.grab(clonedLink, 'top');
+                }
+            }
+        }
+        actions.grab(new Element('span', {
+            'class': 'mbClear'
+         }));
+        // <:: DST
 //		if (options.countBack) {
 //			number.set('html', (options.showCounter && (mediaArray.length > 1)) ? options.counterText.replace(/{x}/, activeMedia + 1).replace(/{y}/, mediaArray.length) : "");
 //		} else {
@@ -955,10 +996,16 @@ Browser.Plugins.QuickTime = (function(){
 
 	/*	Autoload code block	*/
 
-Mediabox.scanPage = function() {
+Mediabox.scanPage = function(startNode) {
 //	if (Browser.Platform.ios && !(navigator.userAgent.match(/iPad/i))) return;	// this quits the process if the visitor is using a non-iPad iOS device (iPhone or iPod Touch)
 //	$$('#mb_').each(function(hide) { hide.set('display', 'none'); });
-	var links = $$("a").filter(function(el) {
+    if (startNode) {
+        startNode = document.id(startNode);
+        links = startNode.getElements('a');
+    } else {
+        links = $$("a");
+    }
+    var links = $$("a").filter(function(el) {
 		return el.rel && el.rel.test(/^lightbox/i);
 	});
 //	$$(links).mediabox({/* Put custom options here */}, null, function(el) {
